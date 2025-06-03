@@ -4,6 +4,7 @@
 # 4. uv init --app no terminal (Iniciar projeto)
 # 5. uv add fastapi --extra standard no terminal (add fastapi e outras dependências)
 # 6. uv run fastapi dev (Rodar projeto)
+# Se necessário ctrl + shift + p --> Python: Select Interpreter --> Enter interpreter path --> Path venv/Scripts/python.exe (Erro de importação no vscode)
 
 from fastapi import FastAPI, HTTPException, Query, Path, status
 from pydantic import BaseModel
@@ -52,6 +53,28 @@ def create_task(task: TaskCreate):
     Cria uma nova tarefa via corpo da requisição.
     """
     task_id = str(uuid4())
-    new_task = Task(id=task_id, created_at=datetime.utcnow(), **task.dict())
+    new_task = Task(id=task_id, created_at=datetime.timezone.utc(), **task.model_dump()) **task.list() # **task.list() datetime.utcnow() are deprecated
     tasks_db[task_id] = new_task
     return new_task
+
+@app.post('/tasks/{task_id}', response_model=Task, status_code=status.HTTP_200_OK)
+def update_task(task_id: str, task: TaskCreate):
+    """
+    Atualiza uma tarefa existente.
+    """
+    stored_task = tasks_db.get(task_id)
+    if not stored_task:
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada")
+    updated_task = Task(id=task_id, created_at=stored_task.created_at, **task.model_dump()) # **task.list()  is deprecated
+    tasks_db[task_id] = updated_task
+    return updated_task
+
+@app.delete('/tasks/{task_id}', status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: str):
+    """
+    Remove uma tarefa.
+    """
+    if task_id in tasks_db:
+        del tasks_db[task_id]
+    else:
+        raise HTTPException(status_code=404, detail='Tarefa não encontrada')
